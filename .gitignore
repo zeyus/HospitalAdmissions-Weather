@@ -1,0 +1,6 @@
+.conda/
+.mypy_cache
+*.pyc
+data/
+models/
+__pycache__/

@@ -1,0 +1,11 @@
+ansi-escapes
+matplotlib
+numpy
+pandas
+pyarrow
+PyGnuplot
+seaborn
+scikit-learn
+torch
+tqdm
+xgboost
