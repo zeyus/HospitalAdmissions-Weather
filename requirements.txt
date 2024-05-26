@@ -9,3 +9,8 @@ scikit-learn
 torch
 tqdm
 xgboost
+gluonts[torch]
+wandb
+scipy
+huggingface_hub[cli]
+matplotlib
