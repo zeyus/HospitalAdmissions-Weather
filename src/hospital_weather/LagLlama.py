@@ -2,7 +2,6 @@
 # https://github.com/time-series-foundation-models/lag-llama
 
 
-from itertools import islice
 import logging
 
 from matplotlib import pyplot as plt
@@ -14,12 +13,11 @@ from gluonts.evaluation import make_evaluation_predictions, Evaluator  # type: i
 from gluonts.dataset.repository.datasets import get_dataset  # type: ignore
 
 from gluonts.dataset.pandas import PandasDataset  # type: ignore
-import pandas as pd
 from tqdm import tqdm
 
 from json import dumps
 
-from common.config import DATA_DIR, FIGURE_DIR, read_data, prepare_data, MODEL_DIR
+from .common.config import DATA_DIR, FIGURE_DIR, read_data, prepare_data
 
 # add contrib/lag-llama to the path
 import sys
@@ -27,7 +25,17 @@ sys.path.append("contrib/lag-llama")
 from lag_llama.gluon.estimator import LagLlamaEstimator
 
 
-def get_lag_llama_predictions(dataset, prediction_length, context_length=32, num_samples=20, device="cuda", batch_size=128, nonnegative_pred_samples=True, progress=False, num_parallel_samples=1000, rope_scaling=False):
+def get_lag_llama_predictions(
+        dataset: PandasDataset,
+        prediction_length: int,
+        context_length: int = 32,
+        num_samples: int = 20,
+        device: str = "cuda",
+        batch_size: int = 128,
+        nonnegative_pred_samples: bool = True,
+        progress: bool = False,
+        num_parallel_samples: int = 1000,
+        rope_scaling: bool = False):
     ckpt = torch.load("./contrib/hf_model/lag-llama.ckpt", map_location=device)
     estimator_args = ckpt["hyper_parameters"]["model_kwargs"]
 
@@ -81,11 +89,9 @@ if __name__ == "__main__":
     logging.info(f'Using device: {device}')
     # Load the data
     logging.info('Loading data')
-    data = read_data()
-    data, _ = prepare_data(data)
-    
+    data = prepare_data(read_data())
 
-    target = 'COVID-19 admissions (suspected and confirmed)'
+    target = 'cov19'
     features = [
         target,
         # 'day_of_week',

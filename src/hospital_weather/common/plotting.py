@@ -45,10 +45,10 @@ def _write_plot_stdout(plt: gp, extra: dict[str, str] = {}) -> None:
     for i, (key, value) in enumerate(extra.items()):
         # if the line exists in lines, append to the end of the line, otherwise add a new line
         ex_txt = f' {key}: {value}'
-        if i < len(lines):
+        if i+1 < len(lines):
             if PLOT_WIDTH + len(ex_txt) >= max_width:
                 ex_txt = ex_txt[:max_width - PLOT_WIDTH - 3] + '...'
-            lines[i] += ex_txt
+            lines[i+1] += ex_txt
         else:
             if len(ex_txt) >= max_width:
                 ex_txt = ex_txt[:max_width - 3] + '...'
