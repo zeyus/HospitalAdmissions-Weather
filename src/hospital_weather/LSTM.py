@@ -234,6 +234,14 @@ def train_lstm() -> None:
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=30, min_lr=1e-5)
     dl = data_utils.DataLoader(data_utils.TensorDataset(X_train, y_train), batch_size=batch_size, shuffle=True, drop_last=False)
 
+    # # load MODEL_DIR lstm_admissions_model_1717106911.best_combined.pth
+    # model.load_state_dict(torch.load(MODEL_DIR / 'lstm_admissions_model_1717106911.best_combined.pth'))
+
+    # # export to onnx
+    # input_sample = torch.randn(1, window_size, len(features), device=device)
+    # torch.onnx.export(model, input_sample, str(MODEL_DIR / "lstm_admissions_model_1717106911.best_combined.onnx"), verbose=True)
+    # exit()
+
 
     logging.info('Training LSTM model')
     best_train_loss = float('inf')

@@ -3,7 +3,7 @@ import json
 import pandas as pd
 
 # Data from danish weather stations as json objects by station
-weather_data_src = "C:/Users/au662726/OneDrive - Aarhus universitet/AU - 2024/Data/2023-09-30.txt"
+weather_data_src = ""
 readings = []
 with open(weather_data_src, "r") as file:
     for line in file:
@@ -58,4 +58,3 @@ df_max_wind_speed_3sec = df_max_wind_speed_3sec.sort_values("calculatedAt")
 df_max_wind_speed_3sec = df_max_wind_speed_3sec.reset_index(drop=True)
 plt.scatter(df_max_wind_speed_3sec["calculatedAt"], df_max_wind_speed_3sec["value"], c=df_max_wind_speed_3sec["stationId"])
 plt.show()
-
