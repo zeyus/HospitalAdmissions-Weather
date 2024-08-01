@@ -147,7 +147,7 @@ def train_lstm() -> None:
     plot_history_length = 10
     early_stopping_patience = 100
     early_stopping_min_delta = 0.001
-    scale_target = False
+    scale_target = True
     target = 'cov19'
     features = [
         'precip_sum', 
@@ -330,8 +330,19 @@ def train_lstm() -> None:
 
     with torch.no_grad():
         logging.info('Plotting predictions vs actual')
-        train_pred: np.ndarray = model(X_train).cpu().numpy()[:, :, -1]
-        test_pred: np.ndarray = model(X_test).cpu().numpy()[:, :, -1]
+        
+        if not scale_target:
+            train_pred: np.ndarray = model(X_train).cpu().numpy()[:, :, -1]
+            test_pred: np.ndarray = model(X_test).cpu().numpy()[:, :, -1]
+        else:
+            # manually inverse transform
+            train_pred: np.ndarray = model(X_train).cpu().numpy()[:, :, -1]
+            test_pred: np.ndarray = model(X_test).cpu().numpy()[:, :, -1]
+            train_pred -= scaler.min_[-1]
+            train_pred /= scaler.scale_[-1]
+            test_pred -= scaler.min_[-1]
+            test_pred /= scaler.scale_[-1]
+
 
         real_values = data[target].to_numpy()
 

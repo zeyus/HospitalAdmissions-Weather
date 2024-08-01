@@ -19,17 +19,29 @@ from common.config import DATA_DIR, FIGURE_DIR, read_data, prepare_data
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     # Load the data
-    data = read_data()
-    data, _ = prepare_data(data)
+    # Load the data
+    target = 'cov19'
+    features = [
+        'precip_sum', 
+        'pressure_mean',
+        'pressure_std', 
+        'temp_mean',
+        'temp_std',
+        'windspeed_mean',
+        'windspeed_std',
+        'winddir_sin',
+        'winddir_cos',
+        'snowdepth_max',
+        target,
+    ]
 
-    # one-hot encode day of week
-    logging.info("One-hot encoding day of week")
-    data = pd.get_dummies(data, columns=['day_of_week'])
-
-
+    data = prepare_data(read_data())
+    
+    # only keep target and features
+    data = data[features]
     # Split the data into features and target
-    X = data.drop(columns=['Total admissions'])
-    y = data['Total admissions']
+    X = data.drop(columns=[target])
+    y = data[target]
 
     # Split the data into train and test, we want to use sliding window (use the last N days to predict the next day)
     split = int(0.8 * len(data))
