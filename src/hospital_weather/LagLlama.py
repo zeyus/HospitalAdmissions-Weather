@@ -17,11 +17,17 @@ from tqdm import tqdm
 
 from json import dumps
 
-from .common.config import DATA_DIR, FIGURE_DIR, read_data, prepare_data
 
-# add contrib/lag-llama to the path
 import sys
+# add contrib/lag-llama to the path
 sys.path.append("contrib/lag-llama")
+# add directory of the current script to the path
+sys.path.append("src")
+
+
+from hospital_weather.common.config import DATA_DIR, FIGURE_DIR, read_data, prepare_data
+
+
 from lag_llama.gluon.estimator import LagLlamaEstimator
 
 

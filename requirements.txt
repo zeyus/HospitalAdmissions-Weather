@@ -9,7 +9,7 @@ scikit-learn
 torch
 tqdm
 xgboost
-gluonts[torch]
+gluonts[torch]<=0.14.4
 wandb
 scipy
 huggingface_hub[cli]
