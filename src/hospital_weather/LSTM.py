@@ -5,9 +5,11 @@ import pandas as pd
 import numpy as np
 import tqdm
 import matplotlib.pyplot as plt
-from .common.config import FIGURE_DIR, read_data, prepare_data, MODEL_DIR
+from .common.config import read_data, prepare_data, MODEL_DIR, SELECTED_FEATURES, SELECTED_TARGET
 from .common import plotting
-import torch, torch.nn as nn, torch.utils.data as data_utils
+import torch
+import torch.nn as nn
+import torch.utils.data as data_utils
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from sklearn.preprocessing import MinMaxScaler  # type: ignore
 from datetime import datetime
@@ -59,6 +61,7 @@ class AdmissionsLSTM(nn.Module):
             output_seq_len: int = 1,
             lstm_layers = 2,
             dropout: float = 0.2,
+            bidirectional: bool = False,
             device: torch.device = torch.device('cpu'),
             dtype=torch.float32):
         super().__init__()
@@ -67,6 +70,8 @@ class AdmissionsLSTM(nn.Module):
         self.hidden_layer_size = hidden_layer_size
         self.output_seq_len = output_seq_len
         self.dtype = dtype
+        self.bidirectional = bidirectional
+        self.num_directions = 2 if bidirectional else 1
 
         self.lstm = nn.LSTM(
             input_size=input_size,
@@ -74,19 +79,20 @@ class AdmissionsLSTM(nn.Module):
             num_layers=lstm_layers,
             batch_first=True,
             dropout=dropout if lstm_layers > 1 else 0.0,
+            bidirectional=bidirectional,
             device=device,
             dtype=dtype
         )
         # self.bn_lstm = nn.BatchNorm1d(hidden_layer_size, device=device, dtype=dtype)
-        self.linear1 = nn.Linear(hidden_layer_size, dense_size, device=device, dtype=dtype)
+        self.linear1 = nn.Linear(hidden_layer_size * self.num_directions, dense_size, device=device, dtype=dtype)
         # self.bn_linear = nn.BatchNorm1d(dense_size, device=device, dtype=dtype)
         self.linear2 = nn.Linear(dense_size, output_size * output_seq_len, device=device, dtype=dtype)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, input_seq):
-        hs = torch.zeros(self.lstm_layers, input_seq.size(0), self.hidden_layer_size, device=self.device, dtype=self.dtype)
-        cs = torch.zeros(self.lstm_layers, input_seq.size(0), self.hidden_layer_size, device=self.device, dtype=self.dtype)
+        hs = torch.zeros(self.lstm_layers  * self.num_directions, input_seq.size(0), self.hidden_layer_size, device=self.device, dtype=self.dtype)
+        cs = torch.zeros(self.lstm_layers  * self.num_directions, input_seq.size(0), self.hidden_layer_size, device=self.device, dtype=self.dtype)
         lstm_out, _ = self.lstm(input_seq, (hs, cs))
         lstm_out = lstm_out[:, -1, :]
         
@@ -134,34 +140,23 @@ def dataset_for_timeseries(
 
 def train_lstm() -> None:
     # ncpu = torch.get_num_threads()
-    batch_size = 128
+    batch_size = 64
     eval_every_n_epochs = 10
-    epochs = 2000
+    epochs = 5000
     window_size = 14
     prediction_size = 3
-    dropout = 0.2
+    dropout = 0.1
     lstm_layers = 3 # underfits with 2
-    hidden_layer_size = 150
-    dense_size = 64
+    hidden_layer_size = 250
+    dense_size = 128
     save_best = True
     plot_history_length = 10
-    early_stopping_patience = 100
-    early_stopping_min_delta = 0.001
+    early_stopping_patience = 500
+    early_stopping_min_delta = 1e-6
     scale_target = True
-    target = 'cov19'
-    features = [
-        'precip_sum', 
-        'pressure_mean',
-        'pressure_std', 
-        'temp_mean',
-        'temp_std',
-        'windspeed_mean',
-        'windspeed_std',
-        'winddir_sin',
-        'winddir_cos',
-        'snowdepth_max',
-        target,
-    ]
+    bidirectional = True
+    target = SELECTED_TARGET
+    features = SELECTED_FEATURES
     train_p = 0.70
     learning_rate = 1e-4
     weight_decay = 1e-5  # L2 regularization
@@ -192,6 +187,7 @@ def train_lstm() -> None:
         'early_stopping_patience': early_stopping_patience,
         'early_stopping_min_delta': early_stopping_min_delta,
         'scale_target': scale_target,
+        'bidirectional': bidirectional,
     }
     with open(metadata_filename, 'w') as f:
         json.dump(metadata, f, indent=4)
@@ -227,6 +223,7 @@ def train_lstm() -> None:
         dense_size = dense_size,
         output_seq_len = prediction_size,
         dropout = dropout,
+        bidirectional = bidirectional,
         device = device,
     )
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -253,8 +250,8 @@ def train_lstm() -> None:
     for i in tqdm.tqdm(range(epochs), colour='red', position=0, leave=True):
         model.train()
         for X_batch, y_batch in dl:
-            y_pred = model(X_batch)
             optimizer.zero_grad()
+            y_pred = model(X_batch)
             single_loss: torch.Tensor = loss_function(y_pred, y_batch)
             single_loss.backward()
             optimizer.step()
@@ -325,26 +322,23 @@ def train_lstm() -> None:
     torch.save(model.state_dict(), model_base_filename.with_suffix('.last.pth'))
     logging.info('Model saved')
 
-    logging.info('Loading best (combined) model')
-    model.load_state_dict(torch.load(model_base_filename.with_suffix('.best_combined.pth')))
+    logging.info('Loading best (test) model')
+    model.load_state_dict(torch.load(model_base_filename.with_suffix('.best_test.pth')))
 
     with torch.no_grad():
         logging.info('Plotting predictions vs actual')
-        
-        if not scale_target:
-            train_pred: np.ndarray = model(X_train).cpu().numpy()[:, :, -1]
-            test_pred: np.ndarray = model(X_test).cpu().numpy()[:, :, -1]
-        else:
-            # manually inverse transform
-            train_pred: np.ndarray = model(X_train).cpu().numpy()[:, :, -1]
-            test_pred: np.ndarray = model(X_test).cpu().numpy()[:, :, -1]
-            train_pred -= scaler.min_[-1]
-            train_pred /= scaler.scale_[-1]
-            test_pred -= scaler.min_[-1]
-            test_pred /= scaler.scale_[-1]
-
-
         real_values = data[target].to_numpy()
+        train_pred: np.ndarray = model(X_train).cpu().numpy()[:, :, -1]
+        test_pred: np.ndarray = model(X_test).cpu().numpy()[:, :, -1]
+        if scale_target:
+            # manually inverse transform
+            target_index = data.columns.get_loc(target)
+            train_pred = train_pred * (1/scaler.scale_[target_index]) + scaler.min_[target_index]
+            test_pred = test_pred * (1/scaler.scale_[target_index]) + scaler.min_[target_index]
+            real_values = real_values * (1/scaler.scale_[target_index]) + scaler.min_[target_index] 
+
+
+        
 
         # get quantiles for stripes        
         train_pred_q = np.quantile(reverse_stripe(train_pred), [0.1, 0.5, 0.9], axis=1)

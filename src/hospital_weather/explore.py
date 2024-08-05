@@ -25,6 +25,7 @@ import json
 import tqdm
 import logging
 import random
+import seaborn as sns
 from json import dump
 from .common.config import prepare_data, DATA_DIR, FIGURE_DIR, NHS_DATA_FILE, WEATHER_DATA_FILE, MERGED_DATA_FILE
 
@@ -131,12 +132,29 @@ def load_data() -> pd.DataFrame:
 
 def plot_data_exploration(hospital_weather: pd.DataFrame):
     # now let's look at the correlation between the variables
-    corr = hospital_weather.corr()
-    fig, ax = plt.subplots(figsize=(20, 20))
-    ax.matshow(corr, cmap='coolwarm')
-    plt.xticks(range(len(corr.columns)), corr.columns, rotation=90)  # type: ignore
-    plt.yticks(range(len(corr.columns)), corr.columns)  # type: ignore
-    fig.savefig(FIGURE_DIR / 'correlation_matrix.png')
+    
+    # drop solarradiation_max and uvindex_max
+    d = hospital_weather.drop(columns=['day_of_week', 'solarradiation_max', 'precip_max', 'snow_max', 'solarenergy_max', 'total', 'noncov19'], inplace=False)
+    corr = d.corr()
+    plt.rcParams.update({'font.size': 20})
+    fig, ax = plt.subplots()
+    fig.set_size_inches(16, 20)  # type: ignore
+    cbar_ax = fig.add_axes((.92, .3, .02, .4))
+    heatmap = sns.heatmap(corr, cmap="vlag", ax=ax, square=True, annot=False, vmin=-1.0, vmax=1.0, cbar_ax=cbar_ax)
+    
+    heatmap.set_title('Variable Correlation Heatmap', fontdict={'fontsize': 30}, pad=12)
+    # set x and y rotation
+    heatmap.set_xticks(np.arange(len(corr.columns))+0.5, corr.columns, rotation=60, ha='right')
+    heatmap.set_yticks(np.arange(len(corr.columns))+0.5, corr.columns, rotation=330, va='bottom')
+    plt.savefig(FIGURE_DIR / 'correlation_heatmap.png', bbox_inches='tight', dpi=300)
+    # plt.rcParams.update({'font.size': 20})
+    # fig, ax = plt.subplots(figsize=(20, 20))
+    # cax = ax.matshow(corr, cmap='coolwarm')
+    # plt.xticks(range(len(corr.columns)), corr.columns, rotation=300, ha='right')  # type: ignore
+    # plt.yticks(range(len(corr.columns)), corr.columns, rotation=330, va='bottom')  # type: ignore
+    # plt.legend()
+    # fig.colorbar(cax)
+    # fig.savefig(FIGURE_DIR / 'correlation_matrix.png', bbox_inches='tight')
 
     # plot 3 x 3 grid of 6 random months
     fig, axs = plt.subplots(3, 3, figsize=(20, 20), sharey='row')
@@ -147,7 +165,7 @@ def plot_data_exploration(hospital_weather: pd.DataFrame):
 
     min_date = hospital_weather.index.min()
     max_date = hospital_weather.index.max()
-    date_range: pd.DatetimeIndex = pd.date_range(min_date, max_date - pd.DateOffset(months=1), freq='M')
+    date_range: pd.DatetimeIndex = pd.date_range(min_date, max_date - pd.DateOffset(months=1), freq='ME')
     handles: list[Artist] = []
     handles2: list[Artist] = []
     labels: list = []

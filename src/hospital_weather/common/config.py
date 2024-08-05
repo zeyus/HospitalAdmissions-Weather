@@ -95,3 +95,18 @@ def prepare_data(data: pd.DataFrame) -> pd.DataFrame:
     data['winddir_cos'] = data['winddir_mean'].apply(lambda x: cos(radians(x)))
 
     return data
+
+SELECTED_TARGET: str = 'cov19'
+SELECTED_FEATURES: list[str] = [
+    'precip_sum', 
+    'pressure_mean',
+    'pressure_std', 
+    'temp_mean',
+    'temp_std',
+    'windspeed_mean',
+    'windgust_mean',
+    'winddir_sin',
+    'winddir_cos',
+    'snowdepth_max',
+    SELECTED_TARGET,
+]
