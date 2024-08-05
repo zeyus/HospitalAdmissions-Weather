@@ -136,7 +136,7 @@ if __name__ == "__main__":
         # static_features=data.drop(columns=["target"]),
     )
 
-    prediction_length = 2
+    prediction_length = 3
     context_length = 14
     num_samples = 500
 
@@ -200,10 +200,10 @@ if __name__ == "__main__":
     # Plot the forecasts
     logging.info('Plotting windowed forecasts')
     plt.figure(figsize=(20, 15))
-    date_formater = mdates.DateFormatter('%b, %d')
+    date_formater = mdates.DateFormatter('%b, %Y')
     plt.rcParams.update({'font.size': 15})
     ax = plt.subplot(1, 1, 1)
-    plt.plot(windowed_forecasts['target'], label="target", )
+    plt.scatter(windowed_forecasts.index, windowed_forecasts['target'], label="target", color='grey')
     plt.plot(windowed_forecasts['forecast_mean'], label="forecast", color='g')
     plt.fill_between(
         windowed_forecasts.index,
