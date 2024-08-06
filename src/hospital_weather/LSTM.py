@@ -144,14 +144,14 @@ def dataset_for_timeseries(
 
 def train_lstm() -> None:
     # ncpu = torch.get_num_threads()
-    batch_size = 64
-    eval_every_n_epochs = 10
+    batch_size = 128
+    eval_every_n_epochs = 1
     epochs = 10000
     window_size = 14
     prediction_size = 3
-    dropout = 0.1
-    lstm_layers = 3 # underfits with 2
-    hidden_layer_size = 250
+    dropout = 0.15
+    lstm_layers = 3 # underfits with 2 (unidirectional)
+    hidden_layer_size = 300
     dense_size = 128
     save_best = True
     plot_history_length = 10
@@ -162,8 +162,8 @@ def train_lstm() -> None:
     target = SELECTED_TARGET
     features = SELECTED_FEATURES
     train_p = 0.70
-    learning_rate = 1e-4
-    weight_decay = 1e-5  # L2 regularization
+    learning_rate = 1e-2
+    weight_decay = 1e-2  # L2 regularization
     start_datetime = datetime.timestamp(datetime.now())
     model_base_filename = MODEL_DIR / f'lstm_admissions_model_{start_datetime}'
     metadata_filename = model_base_filename.with_suffix('.json')
@@ -233,7 +233,7 @@ def train_lstm() -> None:
     )
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     loss_function = nn.MSELoss()
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=30, min_lr=1e-5)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=30, min_lr=1e-5)
     dl = data_utils.DataLoader(data_utils.TensorDataset(X_train, y_train), batch_size=batch_size, shuffle=True, drop_last=False)
 
     # # load MODEL_DIR lstm_admissions_model_1717106911.best_combined.pth
@@ -417,7 +417,7 @@ def compare_lstm_models() -> None:
     with torch.no_grad():
         logging.info('Calculating model prediction stats')
 
-        for model_file in list(MODEL_DIR.glob('lstm_admissions_model_*.pth')):
+        for model_file in list(MODEL_DIR.glob('lstm_admissions_model_*.best_test.pth')):
             # load model JSON (it is the same name as the model file, but without the .best_xxx.pth)
             # remove the .best_{combined|test|train}.pth suffix
             logging.info(f'Loading model: {model_file}')
@@ -427,6 +427,7 @@ def compare_lstm_models() -> None:
             metadata: dict[str, Any]
             with open(metadata_filename) as f:
                 metadata = json.load(f)
+            bidirectional = metadata['bidirectional'] if 'bidirectional' in metadata else False
             model = AdmissionsLSTM(
                 input_size = len(features),
                 hidden_layer_size = metadata['hidden_layer_size'],
@@ -434,6 +435,7 @@ def compare_lstm_models() -> None:
                 dense_size = metadata['dense_size'],
                 output_seq_len = prediction_size,
                 dropout = metadata['dropout'],
+                bidirectional = bidirectional,
                 device = device,
             )
 
@@ -474,8 +476,9 @@ def compare_lstm_models() -> None:
 
             model_name = model_file.name.split('.')[-3].split('_')[-1]
             model_type = model_file.name.split('.')[-2]
+            model_prefix = 'BLSTM' if bidirectional else 'LSTM'
             model_results.append({
-                'model': 'LSTM_'+model_name,
+                'model': model_prefix+'_'+model_name,
                 'type': model_type,
                 'mae_train': float(mae_train),
                 'mae_test': float(mae_test),
