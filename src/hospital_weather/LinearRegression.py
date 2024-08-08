@@ -7,13 +7,14 @@ from typing import Any
 from tqdm import tqdm
 
 from sklearn.model_selection import train_test_split  # type: ignore
-from sklearn.metrics import mean_squared_error, r2_score  # type: ignore
-from sklearn.linear_model import LinearRegression, Lasso, Ridge  # type: ignore
+from sklearn.metrics import root_mean_squared_error, r2_score  # type: ignore
+from sklearn.linear_model import LinearRegression, Lasso  # type: ignore
 from sklearn.linear_model._base import LinearModel  # type: ignore
-from sklearn.preprocessing import StandardScaler  # type: ignore
+from sklearn.preprocessing import MinMaxScaler  # type: ignore
+import matplotlib.dates as mdates
 
 
-from .common.config import FIGURE_DIR, read_data, prepare_data, MODEL_DIR
+from .common.config import FIGURE_DIR, read_data, prepare_data, MODEL_DIR, SELECTED_TARGET, SELECTED_FEATURES
 
 
 def prepare_dataset(
@@ -35,12 +36,30 @@ def prepare_dataset(
     return X_train, X_test, y_train, y_test
     
 
-def model_eval(model: LinearModel, X: np.ndarray, y: np.ndarray, split_name: str, model_name: str, const_pred: None | float = None) -> dict[str, Any]:
+def model_eval(
+        model: LinearModel,
+        X: np.ndarray,
+        y: np.ndarray,
+        split_name: str,
+        model_name: str,
+        const_pred: None | float = None,
+        unscale: bool = False,
+        scaler_scale: float = 1.0,
+        scaler_min: float = 0.0) -> dict[str, Any]:
     if const_pred is not None:
+        print(const_pred)
+        if unscale:
+            const_pred = const_pred * 1/scaler_scale + scaler_min
+        print(const_pred)
         y_pred = np.full_like(y, const_pred)
+
     else:
         y_pred = model.predict(X)
-    rmse = np.sqrt(mean_squared_error(y, y_pred))
+    if unscale:
+        y = y * 1/scaler_scale + scaler_min
+        y_pred = y_pred * 1/scaler_scale + scaler_min
+
+    rmse = root_mean_squared_error(y, y_pred)
     r2 = r2_score(y, y_pred)
     return {
         "model": model_name,
@@ -56,68 +75,27 @@ def train_lr() -> None:
     sns.set_style("whitegrid")
     logging.info("Loading data")
     data = prepare_data(read_data())
-    target = 'cov19'
-    # all_features = [
-    #     target,
-    #     'humidity_mean',
-    #     'humidity_min',
-    #     'humidity_max',
-    #     'humidity_std',
-    #     'precip_sum',
-    #     'precip_max',
-    #     'pressure_mean',
-    #     'pressure_min',
-    #     'pressure_max',
-    #     'pressure_std',
-    #     'temp_mean',
-    #     'temp_min',
-    #     'temp_max',
-    #     'temp_std',
-    #     'windgust_mean',
-    #     'windgust_max',
-    #     'windgust_std',
-    #     'windspeed_mean',
-    #     'windspeed_max',
-    #     'windspeed_std',
-    #     'winddir_sin',
-    #     'winddir_cos',
-    #     'winddir_mean',
-    #     'snow_max',
-    #     'snowdepth_max',
-    #     'solarradiation_max',
-    #     'day_of_week',
-    # ]
-    all_features = [
-        target,
-        'precip_sum', 
-        'pressure_mean',
-        'pressure_std', 
-        'temp_mean',
-        'temp_std',
-        'windspeed_mean',
-        'windspeed_std',
-        'winddir_sin',
-        'winddir_cos',
-        'snowdepth_max',
-    ]
+    target = SELECTED_TARGET
 
-    data = data[all_features]
+    features = SELECTED_FEATURES
+
+    data = data[features]
+
+    logging.info("Scaling data")
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    target_index = data.columns.get_loc(target)
+    data = pd.DataFrame(scaler.fit_transform(data), columns=data.columns, index=data.index)
 
     
     
     logging.info("Splitting dataset")
-    X_train, X_test, X_val, y_train, y_test, y_val = prepare_dataset(data, target, test_size=0.15, val_size=0.15)
+    X_train, X_test, y_train, y_test = prepare_dataset(data, target, test_size=0.3, val_size=0.0)
 
-    logging.info("Scaling data")
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
-    X_val = scaler.transform(X_val)
 
     # Display covariance matrix of features
     plt.figure()
     sns.heatmap(
-        pd.DataFrame(X_train, columns=all_features[1:]).corr(),
+        data.corr(),
         cmap='coolwarm',
         center=0,
     )
@@ -132,7 +110,7 @@ def train_lr() -> None:
     models: dict[str, Lasso] = {}
 
     logging.info("Evaluating dummy model")
-    for x,y,split in tqdm(zip([X_train, X_val, X_test], [y_train, y_val, y_test], ["train", "val", "test"])):
+    for x,y,split in tqdm(zip([X_train, X_test], [y_train, y_test], ["train", "test"])):
         model_evals.append(
             model_eval(
                 LinearRegression(),
@@ -140,42 +118,53 @@ def train_lr() -> None:
                 y,
                 split,
                 "dummy",
-                const_pred=y_train.mean()
+                const_pred=y_train.mean(),
+                unscale=True,
+                scaler_scale=scaler.scale_[target_index],  # type: ignore
+                scaler_min=scaler.min_[target_index]  # type: ignore
             ))
         
 
     
     logging.info("Fitting linear regression model")
-    logging.info(f"Using features: {all_features[1:]}")
+    logging.info(f"Using features: {features}")
     model = LinearRegression()
     model.fit(X_train, y_train)
-
+    models['linear regression-0'] = model
+    
     logging.info("Evaluating linear regression model")
-    for x,y,split in tqdm(zip([X_train, X_val, X_test], [y_train, y_val, y_test], ["train", "val", "test"])):
+    for x,y,split in tqdm(zip([X_train, X_test], [y_train, y_test], ["train", "test"])):
         model_evals.append(
             model_eval(
                 model,
                 x,  # type: ignore
                 y,
                 split,
-                "linear regression"
+                "linear regression-0",
+                unscale=True,
+                scaler_scale=scaler.scale_[target_index],  # type: ignore
+                scaler_min=scaler.min_[target_index]  # type: ignore
+
             ))
         
-    for alpha in [0.1, 0.01, 0.5, 1.0, 2.0, 5.0]:
+    for alpha in [0.00001, 0.0001, 0.01, 0.1, 0.5]:
         logging.info(f"Running Lasso and Ridge regression with alpha={alpha}")
         id = 'lasso'
         reg = Lasso(alpha=alpha).fit(X_train, y_train)
         models[f'{id}-{alpha}'] = reg
-        for x,y,nsplit in tqdm(zip([X_train, X_val, X_test],
-                            [y_train, y_val, y_test],
-                            ['train', 'val', 'test']), desc=f'{id}-{alpha}'):
+        for x,y,nsplit in tqdm(zip([X_train, X_test],
+                            [y_train, y_test],
+                            ['train', 'test']), desc=f'{id}-{alpha}'):
             model_evals.append(
                 model_eval(
                     model=reg, 
                     X=x,  # type: ignore
                     y=y, 
                     split_name=nsplit, 
-                    model_name=f'linear-{id}-alpha-{alpha}'
+                    model_name=f'linear-{id}-alpha-{alpha}',
+                    unscale=True,
+                    scaler_scale=scaler.scale_[target_index],  # type: ignore
+                    scaler_min=scaler.min_[target_index]  # type: ignore
                 )
             )
     
@@ -202,7 +191,7 @@ def train_lr() -> None:
     logging.info("Plotting coefficients")
     coefs = pd.DataFrame(
         np.vstack([v.coef_.round(4) for v in models.values()]),
-        columns=all_features[1:],
+        columns=data.drop(target, axis=1).columns,
     )
 
     coefs['model_type'] = [k.split('-')[0] for k in models.keys()]
@@ -239,5 +228,19 @@ def train_lr() -> None:
     grid.set_axis_labels('coefficient', 'feature')
     plt.savefig(FIGURE_DIR / 'linear_regression_coefficients.png', dpi=300, bbox_inches = "tight")
 
-
+    # plot train+test predictions from best model
+    # drop dummy model from eval results
+    eval_results = eval_results[eval_results['model'] != 'dummy']
+    best_model = eval_results.loc[eval_results['rmse'].idxmin()]
+    date_formater = mdates.DateFormatter('%b, %Y')
+    plt.figure(figsize=(20, 15))
+    plt.rcParams.update({'font.size': 15})
+    target_index = data.columns.get_loc(target)
+    plt.scatter(data.index, data[target] * 1/scaler.scale_[target_index] + scaler.min_[target_index], label='Actual', color='gray')
+    plt.plot(data.index[:len(X_train)], models[best_model['model']].predict(X_train) * 1/scaler.scale_[target_index] + scaler.min_[target_index], label='Train Prediction')  # type: ignore
+    plt.plot(data.index[len(X_train):], models[best_model['model']].predict(X_test) * 1/scaler.scale_[target_index] + scaler.min_[target_index], label='Test Prediction')  # type: ignore
+    # set x tick labels to formated Month, Year
+    plt.gca().xaxis.set_major_formatter(date_formater)
+    plt.legend()
+    plt.savefig(FIGURE_DIR / 'linear_regression_predictions.png', dpi=300, bbox_inches = "tight")
     

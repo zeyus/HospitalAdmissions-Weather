@@ -35,7 +35,7 @@ def _write_plot_stdout(plt: gp, extra: dict[str, str] = {}) -> None:
     max_width = os.get_terminal_size().columns
     sleep(0.01)
     lines: list[str] = []
-    sys.stdout.write(ansiEscapes.cursorSavePosition + ansiEscapes.cursorUp(1) + ansiEscapes.eraseLines(PLOT_HEIGHT + 1))
+    sys.stdout.write(ansiEscapes.cursorSavePosition + ansiEscapes.cursorUp(1) + ansiEscapes.eraseLines(PLOT_HEIGHT + 2))
     while True:
         try:
             lines.append(plt.q_out.get(timeout=0.05).rstrip())  # type: ignore

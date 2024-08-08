@@ -98,15 +98,15 @@ def prepare_data(data: pd.DataFrame) -> pd.DataFrame:
 
 SELECTED_TARGET: str = 'cov19'
 SELECTED_FEATURES: list[str] = [
-    'precip_sum', 
+    'precip_max', 
     'pressure_mean',
     'pressure_std', 
     'temp_mean',
-    'temp_std',
     'windspeed_mean',
     'windgust_mean',
     'winddir_sin',
     'winddir_cos',
     'snowdepth_max',
+    'humidity_max',
     SELECTED_TARGET,
 ]

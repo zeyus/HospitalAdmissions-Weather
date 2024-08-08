@@ -134,7 +134,14 @@ def plot_data_exploration(hospital_weather: pd.DataFrame):
     # now let's look at the correlation between the variables
     
     # drop solarradiation_max and uvindex_max
-    d = hospital_weather.drop(columns=['day_of_week', 'solarradiation_max', 'precip_max', 'snow_max', 'solarenergy_max', 'total', 'noncov19'], inplace=False)
+    d = hospital_weather.drop(columns=['day_of_week', 'solarenergy_max', 'winddir_mean', 'snow_max', 'uvindex_max', 'total', 'noncov19'], inplace=False).copy()
+    # # add lagged cov19
+    # d['cov19_lag1'] = d['cov19'].shift(1)
+    # d['cov19_lag2'] = d['cov19'].shift(1)
+    # d['cov19_lag3'] = d['cov19'].shift(1)
+    # d['cov19_lag5'] = d['cov19'].shift(1)
+    # d['cov19_lag7'] = d['cov19'].shift(7)
+    # d['cov19_lag14'] = d['cov19'].shift(14)
     corr = d.corr()
     plt.rcParams.update({'font.size': 20})
     fig, ax = plt.subplots()
@@ -165,7 +172,7 @@ def plot_data_exploration(hospital_weather: pd.DataFrame):
 
     min_date = hospital_weather.index.min()
     max_date = hospital_weather.index.max()
-    date_range: pd.DatetimeIndex = pd.date_range(min_date, max_date - pd.DateOffset(months=1), freq='ME')
+    date_range: pd.DatetimeIndex = pd.date_range(min_date, max_date - pd.DateOffset(months=1), freq='M')
     handles: list[Artist] = []
     handles2: list[Artist] = []
     labels: list = []

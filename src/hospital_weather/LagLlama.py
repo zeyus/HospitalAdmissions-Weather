@@ -6,7 +6,8 @@ import logging
 
 from matplotlib import pyplot as plt
 import matplotlib.dates as mdates
-
+from sklearn.metrics import root_mean_squared_error  # type: ignore
+import pandas as pd
 import numpy as np
 import torch
 from gluonts.evaluation import make_evaluation_predictions, Evaluator  # type: ignore
@@ -89,7 +90,7 @@ def get_lag_llama_predictions(
     return forecasts, tss
 
 
-if __name__ == "__main__":
+def generate_lagllama_forecasts():
     logging.basicConfig(level=logging.INFO)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     logging.info(f'Using device: {device}')
@@ -123,6 +124,13 @@ if __name__ == "__main__":
     # data['temp'] = data['temp'].astype('float32')
     # data['windspeed'] = data['windspeed'].astype('float32')
     # data['winddir'] = data['winddir'].astype('float32')
+    # remove the "training" data from the dataset (p0.7)
+    prediction_length = 3
+    context_length = 32
+    num_samples = 500
+    split = int(0.7 * len(data))
+    data = data[split-context_length:]
+
     print(data.head())
 
     # Create a PandasDataset from the data
@@ -136,9 +144,8 @@ if __name__ == "__main__":
         # static_features=data.drop(columns=["target"]),
     )
 
-    prediction_length = 3
-    context_length = 14
-    num_samples = 500
+    
+    
 
     # Get the forecasts
     logging.info('Getting forecasts')
@@ -172,7 +179,7 @@ if __name__ == "__main__":
     window_size = context_length + prediction_length
     step_size = prediction_length
     forecasts = []
-    for i in tqdm(range(0, num_rows - window_size, step_size)):
+    for i in tqdm(range(0, num_rows - window_size + 1, step_size)):
         dataset_window = PandasDataset(
             data[i:i + window_size],
             target="target",
@@ -204,26 +211,41 @@ if __name__ == "__main__":
     plt.rcParams.update({'font.size': 15})
     ax = plt.subplot(1, 1, 1)
     plt.scatter(windowed_forecasts.index, windowed_forecasts['target'], label="target", color='grey')
-    plt.plot(windowed_forecasts['forecast_mean'], label="forecast", color='g')
+    plt.plot(windowed_forecasts['forecast_mean'], label="forecast", color='orange')
     plt.fill_between(
         windowed_forecasts.index,
         windowed_forecasts['forecast_lower'],
         windowed_forecasts['forecast_upper'],
         where=(windowed_forecasts['forecast_mean'] != None).to_list(),
-        color='g',
+        color='orange',
         alpha=0.3)
-    plt.xticks(rotation=60)
+    # plt.xticks(rotation=60)
     ax.xaxis.set_major_formatter(date_formater)
     ax.set_title(target)
 
-    plt.gcf().tight_layout()
     plt.legend()
 
     logging.info('Saving figure')
-    plt.savefig(FIGURE_DIR / "lag_llama_windowed_predictions.png")
+    plt.savefig(FIGURE_DIR / "lag_llama_windowed_predictions.png", dpi=300, bbox_inches = "tight")
 
     logging.info('Done!')
 
     # Save the forecasts
     windowed_forecasts.to_csv(DATA_DIR / 'lag_llama_windowed_forecasts.csv')
+
+    # calculate the RMSE
+    logging.info('Calculating RMSE')
+    # remove rows with NaNs
+    windowed_forecasts = windowed_forecasts.dropna()
+    rmse = root_mean_squared_error(windowed_forecasts['target'], windowed_forecasts['forecast_mean'])
+    logging.info(f'RMSE: {rmse}')
+
     logging.info('Done!')
+
+
+def calculate_prediction_rmse() -> float:
+    # remove rows with NaNs
+    forecasts = pd.read_csv(DATA_DIR / 'lag_llama_windowed_forecasts.csv')
+    forecasts = forecasts.dropna()
+    rmse = root_mean_squared_error(forecasts['target'], forecasts['forecast_mean'])
+    return rmse
