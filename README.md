@@ -4,6 +4,10 @@
 
 The COVID-19 pandemic put a strain on the global healthcare infrastructure, the ability to forecast an influx of patients can assist healthcare systems to be prepared in the case of another pandemic or epidemic. This study investigates the use of linear regression, Long Short-Term Memory (LSTM) and Lag-Llama models for predicting the number of daily patient admissions in the country of Wales during the COVID-19 pandemic using local weather data. Models were evaluated for performance with the Root Mean Squared Error (RMSE) score on a set of test data, resulting in an RMSE of 5.84 for the LSTM, 7.37 for Lag-Llama and 33.65 for linear regression. The results indicate that LSTMs are a promising architecture for time-series forecasting, but further investigation is needed, especially for the validation of the magnitude of weather’s effect on COVID-19 hospitalizations.
 
+## Important note
+
+**The current implementation does not make use of a seperate validation set, meaning that there is likely data leakage between the train/test datasets during LSTM training. To overcome this, especially with a larger dataset, ensure that a third partition is created (the code is there for it) so that the model will be completely naïve to the test data.**
+
 ## Setup
 
 Clone this repo and install the requirements with pip `pip install -r requirements.txt`
@@ -26,12 +30,12 @@ It should be fairly trivial to adjust the code to support other datasets.
 
 There are a few helper scripts in the `src` folder.
 
-- `src/prepare.py` : prepare the source data and plot some visual exploration
-- `src/lr.py` : Run the linear regression model and save plots / stats
-- `src/LSTM.py [-c]` : train the LSTM model. If the `-c` argument is provided, instead, compare the saved LSTM models.
-- `src/lagllama.py` : Run lagllama on the data and save forecasts + plots
+- [`src/prepare.py`](src/prepare.py) : prepare the source data and plot some visual exploration
+- [`src/lr.py`](src/lr.py) : Run the linear regression model and save plots / stats
+- [`src/LSTM.py [-c]`](src/LSTM.py) : train the LSTM model. If the `-c` argument is provided, instead, compare the saved LSTM models.
+- [`src/lagllama.py`](src/lagllama.py) : Run lagllama on the data and save forecasts + plots
 
-All LSTM hyperparameters can be configured in [`src/hospital_weather/LSTM.py#L151`](https://github.com/zeyus/HospitalAdmissions-Weather/blob/main/src/hospital_weather/LSTM.py#L151)
+All LSTM hyperparameters can be configured in [`src/hospital_weather/LSTM.py#L151`](src/hospital_weather/LSTM.py#L151)
 
 ## LSTM Architecture
 
